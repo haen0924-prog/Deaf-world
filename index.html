@@ -141,7 +141,9 @@ if (!window.supabase) {
   throw new Error('supabase missing');
 }
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-const ch = sb.channel('walk-' + ROOM, { config: { presence: { key: PID } } });
+// 접속 키는 페이지를 열 때마다 새로 만듭니다. 같은 브라우저의 다른 탭과 키가 겹치면 서로 밀어내는 것을 막습니다.
+const PKEY = PID + '_' + Math.random().toString(36).slice(2, 6);
+const ch = sb.channel('walk-' + ROOM, { config: { presence: { key: PKEY } } });
 
 /* 참가자 상태 */
 let me = null;          // {name,color,x,y,target,goal,nextPick,walking,paused}
@@ -176,7 +178,7 @@ function drawAvatars(box) {
   people().forEach(p => {
     if (p.done) return;
     seen.add(p.pid);
-    const isSelf = me && p.pid === PID;
+    const isSelf = me && p.pid === PKEY;
     let el = box.querySelector('[data-pid="' + p.pid + '"]');
     if (!el) {
       el = document.createElement('div');
@@ -386,7 +388,7 @@ function tickMe() {
 }
 
 function moveSelf() {
-  const el = document.querySelector('#pmap [data-pid="' + PID + '"]');
+  const el = document.querySelector('#pmap [data-pid="' + PKEY + '"]');
   if (!el) return;
   el.style.left = me.x + '%';
   el.style.top = me.y + '%';
@@ -496,17 +498,28 @@ function renderConn() {
   if (el) el.textContent = connStatus + (lastTrack ? ' · 정보 전송: ' + lastTrack : '');
 }
 
-ch.subscribe((status, err) => {
-  connStatus = (STATUS_TEXT[status] || status) + (err ? ' (' + (err.message || err) + ')' : '');
-  renderConn();
-  if (status !== 'SUBSCRIBED') {
-    subscribed = false;
-    return;
-  }
-  subscribed = true;
-  // 다시 연결되면 내 정보를 바로 다시 보냅니다. 큰 화면이 나를 다시 찾게 합니다.
-  if (me) sendNow();
-});
+let retryCount = 0;
+function connect() {
+  ch.subscribe((status, err) => {
+    connStatus = (STATUS_TEXT[status] || status) + (err ? ' (' + (err.message || err) + ')' : '');
+    renderConn();
+    if (status === 'CLOSED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+      subscribed = false;
+      // 끊기면 잠시 뒤 다시 연결합니다 (최대 20번)
+      if (MODE === 'player' && retryCount < 20) {
+        retryCount++;
+        setTimeout(() => { connStatus = '다시 연결 중...'; renderConn(); connect(); }, 1500 + retryCount * 500);
+      }
+      return;
+    }
+    if (status !== 'SUBSCRIBED') return;
+    retryCount = 0;
+    subscribed = true;
+    // 다시 연결되면 내 정보를 바로 다시 보냅니다. 큰 화면이 나를 다시 찾게 합니다.
+    if (me) sendNow();
+  });
+}
+connect();
 
 function sendNow() {
   if (!me) return;
