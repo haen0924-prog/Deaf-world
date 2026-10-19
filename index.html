@@ -38,9 +38,10 @@ button:disabled{opacity:.4;cursor:default}
 .av .nm span{font-family:var(--display);font-weight:400;color:var(--pink)}
 
 /* 문제 아이콘 */
-.hot{position:absolute;transform:translate(-50%,-50%);width:50px;height:50px;border-radius:50%;background:var(--pink);color:var(--white);
-  border:3px solid var(--ink);box-shadow:3px 3px 0 var(--ink);font-family:var(--display);font-size:24px;display:grid;place-items:center;
-  padding:0;animation:pulse 1.6s ease-in-out infinite;z-index:1}
+.hot{position:absolute;transform:translate(-50%,-50%);width:30px;height:30px;min-width:30px;min-height:30px;max-width:30px;max-height:30px;
+  border-radius:50%;background:var(--white);color:var(--pink);border:2px solid var(--ink);box-shadow:2px 2px 0 var(--ink);
+  font-family:var(--display);font-size:16px;line-height:26px;text-align:center;padding:0;margin:0;
+  animation:pulse 1.8s ease-in-out infinite;z-index:1;cursor:pointer;user-select:none}
 .hot.done{background:#cfc7b4;color:var(--ink);animation:none;opacity:.7}
 .hot.tv{pointer-events:none}
 @keyframes pulse{0%,100%{transform:translate(-50%,-50%) scale(1)}50%{transform:translate(-50%,-50%) scale(1.08)}}
@@ -199,7 +200,9 @@ function drawAvatars(box) {
 function drawHot(box, clickable) {
   box.querySelectorAll('.hot').forEach(n => n.remove());
   HOTSPOTS.forEach((h, i) => {
-    const b = document.createElement('button');
+    const b = document.createElement('div');
+    b.setAttribute('role', clickable ? 'button' : 'img');
+    b.setAttribute('aria-label', '문제 ' + (i + 1));
     const isDone = clickable && solved.includes(i);
     b.className = 'hot' + (isDone ? ' done' : '') + (clickable ? '' : ' tv');
     b.style.left = h.x + '%';
