@@ -155,9 +155,23 @@ let subscribed = false;
 let lastKey = '';
 let lastSend = 0;
 
+/* 위치 정보는 브로드캐스트로 받아서 posMap에 모읍니다 (가벼운 메시지).
+   접속 입장/퇴장은 presence로 받습니다. 두 가지를 합쳐서 사람 목록을 만듭니다. */
+const posMap = {};
 function people() {
   const s = ch.presenceState();
-  return Object.entries(s).map(([pid, metas]) => ({ pid, ...metas[metas.length - 1] })).filter(p => p.name);
+  const map = {};
+  Object.entries(s).forEach(([pid, metas]) => {
+    const m = metas[metas.length - 1];
+    if (m && m.name) map[pid] = { pid, ...m };
+  });
+  const now = Date.now();
+  Object.keys(posMap).forEach(pid => {
+    const v = posMap[pid];
+    if (now - v.t > 10000) { delete posMap[pid]; return; }
+    map[pid] = { ...(map[pid] || {}), ...v, pid };
+  });
+  return Object.values(map).filter(p => p.name);
 }
 
 function svgHTML() {
@@ -395,14 +409,17 @@ function moveSelf() {
   el.classList.toggle('walk', !!me.walking);
 }
 
-function sendMe() {
+/* 위치는 브로드캐스트로 보냅니다 (접속 정보 갱신 없이 가볍게) */
+function sendPos(force) {
+  if (!me || !subscribed) return;
   const key = [Math.round(me.x), Math.round(me.y), me.walking, solved.length, done].join('|');
-  if (key === lastKey && Date.now() - lastSend < 2000) return;
-  if (Date.now() - lastSend < 700) return;
+  if (!force && key === lastKey) return;
+  if (Date.now() - lastSend < 300) return;
   lastKey = key;
   lastSend = Date.now();
-  ch.track(meta());
+  ch.send({ type: 'broadcast', event: 'pos', payload: { ...meta(), pid: PKEY } });
 }
+function sendMe() { sendPos(false); }
 
 /* 문제 아이콘으로 걸어가기 */
 function goHot(i) {
@@ -480,6 +497,10 @@ ch.on('presence', { event: 'sync' }, () => {
   if (MODE === 'display') drawTV();
   else drawPlayer();
 });
+ch.on('broadcast', { event: 'pos' }, ({ payload }) => {
+  if (!payload || !payload.pid || payload.pid === PKEY) return;
+  posMap[payload.pid] = { ...payload, t: Date.now() };
+});
 
 if (MODE === 'display') renderTV();
 else renderPlayer();
@@ -527,10 +548,19 @@ function sendNow() {
   if (p && p.then) p.then(r => { lastTrack = String(r); renderConn(); });
 }
 
-/* 2초마다 내 정보를 다시 보냅니다. 연결이 잠깐 끊겨도 큰 화면이 빨리 복구합니다. */
+/* 2초마다 위치를 다시 알립니다 (가벼운 브로드캐스트).
+   접속 정보(presence)는 30초마다만 다시 보내서 접속 변화가 쌓이지 않게 합니다. */
+setInterval(() => {
+  if (MODE === 'player' && subscribed && me) sendPos(true);
+}, 2000);
 setInterval(() => {
   if (MODE === 'player' && subscribed && me) sendNow();
-}, 2000);
+}, 30000);
+
+/* 휴대폰 화면도 다른 사람들의 움직임을 0.5초마다 갱신 */
+setInterval(() => {
+  if (MODE === 'player' && me && $('pmap') && !$('game').classList.contains('hidden')) drawAvatars($('pmap'));
+}, 500);
 </script>
 </body>
 </html>
