@@ -285,6 +285,7 @@ function renderPlayer() {
       <div class="card" style="padding:14px">
         <div class="pbar"><span>내 진행</span><b id="pcount">0 / ${HOT_COUNT}</b></div>
         <p class="muted" style="margin:6px 0 0">빈 곳을 누르면 그곳으로 걸어갑니다.</p>
+        <p class="muted" id="conn" style="margin:6px 0 0;font-size:13px">연결 확인 중...</p>
       </div>
     </div>
     <div id="done" class="card hidden"></div>
@@ -480,11 +481,27 @@ ch.on('presence', { event: 'sync' }, () => {
 if (MODE === 'display') renderTV();
 else renderPlayer();
 
+/* 연결 상태 표시 (휴대폰 화면 하단) */
+function setConn(text) {
+  const el = $('conn');
+  if (el) el.textContent = text;
+}
+
 ch.subscribe(status => {
-  if (status !== 'SUBSCRIBED') return;
+  if (MODE === 'player') setConn(status === 'SUBSCRIBED' ? '연결됨' : '연결 확인 중... (' + status + ')');
+  if (status !== 'SUBSCRIBED') {
+    subscribed = false;
+    return;
+  }
   subscribed = true;
+  // 다시 연결되면 내 정보를 바로 다시 보냅니다. 큰 화면이 나를 다시 찾게 합니다.
   if (me) ch.track(meta());
 });
+
+/* 2초마다 내 정보를 다시 보냅니다. 연결이 잠깐 끊겨도 큰 화면이 빨리 복구합니다. */
+setInterval(() => {
+  if (MODE === 'player' && subscribed && me) ch.track(meta());
+}, 2000);
 </script>
 </body>
 </html>
