@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>실시간 연결 테스트</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+body{font-family:system-ui,"Malgun Gothic",sans-serif;padding:16px;margin:0;background:#F5EFE3;color:#1F1B2D}
+h1{font-size:20px;margin:0 0 10px}
+#log{background:#fff;border:2px solid #1F1B2D;border-radius:10px;padding:10px;font-size:14px;line-height:1.6;min-height:240px;white-space:pre-wrap}
+button{font-size:16px;padding:10px 14px;border:2px solid #1F1B2D;border-radius:10px;background:#FFC93C;margin-top:10px;cursor:pointer}
+</style>
+</head>
+<body>
+<h1>실시간 연결 테스트</h1>
+<p>게임 없이 연결만 확인합니다. 아무 것도 자동으로 보내지 않습니다.</p>
+<button id="again">메시지 한 번 더 보내기</button>
+<div id="log"></div>
+<script>
+// 아래 두 값은 게임 파일과 같은 값입니다.
+const SUPABASE_URL = 'https://njrbqfyxxwobthzrhqzm.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qcmJxZnl4eHdvYnRoenJocXptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5NDkxODUsImV4cCI6MjA4OTUyNTE4NX0.8lw0F6jzaMHlBqaiHoEtywLsANdcQDLJVCqiSdwPFMg';
+
+const logEl = document.getElementById('log');
+const t0 = Date.now();
+function log(msg) {
+  const s = ((Date.now() - t0) / 1000).toFixed(1) + '초  ' + msg;
+  logEl.textContent += s + '\n';
+  console.log(s);
+}
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const key = 'test_' + Math.random().toString(36).slice(2, 8);
+const ch = sb.channel('realtime-test', { config: { presence: { key } } });
+
+ch.on('presence', { event: 'sync' }, () => {
+  log('접속 목록 갱신: ' + Object.keys(ch.presenceState()).length + '명');
+});
+ch.on('presence', { event: 'leave' }, ({ key: k }) => log('퇴장: ' + k));
+
+function sendOnce() {
+  const p = ch.track({ name: '테스트', t: Date.now() });
+  if (p && p.then) p.then(r => log('정보 전송 결과: ' + r));
+}
+
+ch.subscribe((status, err) => {
+  log('연결 상태: ' + status + (err ? ' / 오류: ' + (err.message || err) : ''));
+  if (status === 'SUBSCRIBED') {
+    log('연결 완료. 정보 한 번 보냅니다.');
+    sendOnce();
+  }
+});
+
+document.getElementById('again').onclick = () => {
+  log('수동으로 다시 보냅니다.');
+  sendOnce();
+};
+</script>
+</body>
+</html>
