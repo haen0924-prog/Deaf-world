@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>모두 이야기 캠프 · 수어 실시간 퀴즈 방</title>
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+:root{
+  --paper:#F5EFE3; --ink:#1F1B2D; --pink:#FF4F8B; --blue:#2B59C3;
+  --yellow:#FFC93C; --green:#2E9E6A; --white:#FFFDF8; --bad:#E0342B;
+  --display:"Black Han Sans","Noto Sans KR",sans-serif;
+  --body:"Noto Sans KR",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{font-family:var(--body);color:var(--ink);background:var(--paper);
+  background-image:radial-gradient(rgba(31,27,45,.09) 1px,transparent 1.3px);background-size:14px 14px}
+button{font-family:var(--display);cursor:pointer;color:var(--ink);background:var(--yellow);
+  border:3px solid var(--ink);border-radius:14px;box-shadow:4px 4px 0 var(--ink);padding:12px 18px;font-size:18px}
+button:active{transform:translate(3px,3px);box-shadow:none}
+button:disabled{opacity:.4;cursor:default;transform:none;box-shadow:4px 4px 0 var(--ink)}
+.hidden{display:none !important}
+.err{padding:30px;font-size:20px;color:var(--bad);font-weight:700}
+
+/* ===== 큰 화면 (50인치 TV) ===== */
+.display{display:grid;grid-template-columns:1fr 440px;gap:24px;height:100vh;padding:24px}
+.stage{display:flex;flex-direction:column;gap:14px;min-height:0}
+.topbar{display:flex;justify-content:space-between;align-items:center}
+.roomcode{font-family:var(--display);font-size:30px}
+.roomcode b{color:var(--pink);letter-spacing:4px}
+#timerBig{font-family:var(--display);font-size:46px;font-variant-numeric:tabular-nums}
+#timerBig.warn{color:var(--pink)}
+.map{position:relative;flex:1;background:var(--white);border:4px solid var(--ink);
+  border-radius:8px 36px 8px 36px;box-shadow:8px 8px 0 var(--ink);overflow:hidden;min-height:0}
+.map .avatar{position:absolute;transform:translate(-50%,-50%);text-align:center;transition:left .4s,top .4s;pointer-events:none}
+.avatar .dot{width:56px;height:56px;border-radius:50%;border:3px solid var(--ink);margin:0 auto;box-shadow:3px 3px 0 var(--ink)}
+.avatar .nm{font-weight:700;font-size:18px;background:var(--white);border:2px solid var(--ink);border-radius:99px;padding:0 10px;margin-top:4px;white-space:nowrap}
+.mapHint{position:absolute;left:18px;bottom:14px;font-size:16px;color:#5a556a}
+.qpanel{background:var(--white);border:4px solid var(--ink);border-radius:20px;padding:22px;box-shadow:6px 6px 0 var(--ink)}
+.qpanel h2{font-family:var(--display);font-weight:400;font-size:40px;margin:0 0 14px;line-height:1.25}
+.choices{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.choice{background:var(--paper);color:var(--ink);font-family:var(--body);font-weight:700;font-size:22px;text-align:left;
+  border:3px solid var(--ink);border-radius:14px;padding:14px 16px;box-shadow:3px 3px 0 var(--ink)}
+.choice.correct{background:var(--green);color:var(--white)}
+.bar{display:flex;align-items:center;gap:10px;margin-top:8px;font-size:18px}
+.bar i{display:block;height:18px;background:var(--blue);border:2px solid var(--ink);border-radius:6px;min-width:4px;transition:width .3s}
+.side{display:flex;flex-direction:column;gap:14px;min-height:0}
+.qrbox{background:var(--white);border:4px solid var(--ink);border-radius:20px;padding:16px;text-align:center;box-shadow:6px 6px 0 var(--ink)}
+.qrbox p{margin:10px 0 0;font-size:18px;font-weight:700}
+.ctrl{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.ctrl button{font-size:20px;padding:12px 6px}
+.board{background:var(--white);border:4px solid var(--ink);border-radius:20px;padding:16px;flex:1;overflow:auto;min-height:0}
+.board h3{font-family:var(--display);font-weight:400;font-size:24px;margin:0 0 8px}
+.row{display:flex;justify-content:space-between;font-size:20px;padding:6px 0;border-bottom:2px dashed #cfc7b4}
+.row b{font-family:var(--display);font-weight:400}
+.counter{font-size:18px;font-weight:700;color:#5a556a}
+
+/* ===== 참가자 화면 (휴대폰) ===== */
+.phone{max-width:480px;margin:0 auto;padding:18px 16px 40px;min-height:100vh}
+.card{background:var(--white);border:3px solid var(--ink);border-radius:6px 26px 6px 26px;padding:20px;box-shadow:6px 6px 0 var(--ink);margin-bottom:18px}
+.card h2{font-family:var(--display);font-weight:400;font-size:28px;margin:0 0 10px;line-height:1.2}
+.card p{margin:0 0 10px;line-height:1.55}
+input[type=text]{width:100%;font-family:var(--body);font-size:18px;padding:12px 14px;border:3px solid var(--ink);border-radius:12px;background:var(--paper);margin:8px 0}
+.btn-full{display:block;width:100%;margin-top:10px}
+.pmap{position:relative;height:260px;background:var(--white);border:3px solid var(--ink);border-radius:20px;overflow:hidden;touch-action:none}
+.pmap .avatar{position:absolute;transform:translate(-50%,-50%);text-align:center;transition:left .3s,top .3s;pointer-events:none}
+.pmap .dot{width:40px;height:40px;border-radius:50%;border:3px solid var(--ink);margin:0 auto}
+.pmap .nm{font-size:13px;font-weight:700;background:var(--white);border:2px solid var(--ink);border-radius:99px;padding:0 8px;white-space:nowrap}
+.pmap .you .dot{box-shadow:0 0 0 4px var(--yellow)}
+.pchoices{display:grid;gap:10px;margin-top:8px}
+.pchoices button{width:100%;text-align:left;font-family:var(--body);font-weight:700;font-size:18px;padding:14px 16px;box-shadow:3px 3px 0 var(--ink)}
+.pchoices button.picked{background:var(--pink);color:var(--white)}
+.result{font-family:var(--display);font-size:36px;text-align:center;margin:10px 0}
+.result.ok{color:var(--green)} .result.no{color:var(--bad)}
+.msgline{font-size:17px;font-weight:700;text-align:center;color:#5a556a;margin-top:8px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+/* ============================================================
+   설정: Supabase 프로젝트 값을 넣으세요.
+   Supabase 대시보드 → Project Settings → API 에서 복사합니다.
+   anon public 키는 브라우저에 노출되어도 되는 키입니다.
+   ============================================================ */
+const SUPABASE_URL = 'https://njrbqfyxxwobthzrhqzm.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qcmJxZnl4eHdvYnRoenJocXptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5NDkxODUsImV4cCI6MjA4OTUyNTE4NX0.8lw0F6jzaMHlBqaiHoEtywLsANdcQDLJVCqiSdwPFMg';
+const SECONDS_PER_Q = 20;
+
+/* 문제 4개 (모두 같은 문제를 풉니다) */
+const QUIZ = [
+  { q: '수어에 대한 설명으로 옳은 것은?',
+    c: ['나라마다 수어가 다르다', '수어는 전 세계 공통어다', '한국수어는 한글을 손으로 옮긴 것이다', '농인은 모두 국제수어 하나만 쓴다'], a: 0 },
+  { q: '한국수화언어법이 제정된 날은?',
+    c: ['2016년 2월 3일', '2016년 8월 4일', '2013년 2월 3일', '2020년 10월 31일'], a: 0 },
+  { q: '수어에 대한 설명으로 옳은 것은?',
+    c: ['수어는 손으로만 표현한다', '얼굴 표정도 수어 문법의 일부다', '수어로는 추상적인 개념을 표현할 수 없다', '수어는 몸짓을 모아 놓은 것에 불과하다'], a: 1 },
+  { q: '농인과 청인의 관계로 옳은 것은?',
+    c: ['청인이 정상이고 농인은 장애다', '쓰는 언어가 다를 뿐 정상과 비정상의 관계가 아니다', '농인이 되려면 치료가 필요하다', '두 집단은 같은 언어를 쓴다'], a: 1 }
+];
+
+const COLORS = ['#FF4F8B','#2B59C3','#2E9E6A','#FFC93C','#7A4FD0','#E0342B','#FF8A3D','#1F1B2D'];
+
+/* ===== 공통 준비 ===== */
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const params = new URLSearchParams(location.search);
+// QR로 들어온 참가자는 room 값이 있고, 그 외(파일을 직접 열거나 mode=display)는 큰 화면
+const MODE = (params.get('room') && params.get('mode') !== 'display') ? 'player' : 'display';
+let ROOM = (params.get('room') || '').toUpperCase();
+
+if (MODE === 'display' && !ROOM) {
+  ROOM = Math.random().toString(36).slice(2, 8).toUpperCase();
+  location.replace(location.pathname + '?mode=display&room=' + ROOM);
+}
+
+let PID = sessionStorage.getItem('escPid');
+if (!PID) { PID = Math.random().toString(36).slice(2, 10); sessionStorage.setItem('escPid', PID); }
+
+const colorOf = pid => COLORS[[...pid].reduce((a, c) => a + c.charCodeAt(0), 0) % COLORS.length];
+
+if (!window.supabase || SUPABASE_URL.includes('YOUR-PROJECT')) {
+  $('app').innerHTML = '<div class="err">Supabase 주소와 키를 파일 위쪽 설정에 넣어 주세요.</div>';
+  throw new Error('config missing');
+}
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const ch = sb.channel('escape-' + ROOM, { config: { presence: { key: PID }, broadcast: { self: false } } });
+
+/* 공유 상태 */
+let st = { phase: 'lobby', q: -1, endAt: 0, revealed: false };
+
+/* ===== 참가자 전용 상태 ===== */
+let me = null;            // {name,color,x,y}
+let subscribed = false;
+let answered = false;
+let pTimer = null;
+
+/* ===== 큰 화면 전용 상태 ===== */
+let answers = {};         // pid -> {choice, t, name}
+let scores = {};          // pid -> {name, score}
+let dTimer = null;
+
+function people() {
+  const s = ch.presenceState();
+  return Object.entries(s).map(([pid, metas]) => ({ pid, ...metas[metas.length - 1] })).filter(p => p.name);
+}
+
+function drawMap(el, interactive) {
+  el.querySelectorAll('.avatar').forEach(n => n.remove());
+  people().forEach(p => {
+    const d = document.createElement('div');
+    d.className = 'avatar' + (p.pid === PID ? ' you' : '');
+    d.style.left = p.x + '%';
+    d.style.top = p.y + '%';
+    d.innerHTML = '<div class="dot" style="background:' + (p.color || COLORS[0]) + '"></div><div class="nm">' + esc(p.name) + '</div>';
+    el.appendChild(d);
+  });
+}
+
+/* ===== 큰 화면 ===== */
+function renderDisplay() {
+  const url = location.origin + location.pathname + '?room=' + ROOM;
+  $('app').innerHTML = `
+  <div class="display">
+    <section class="stage">
+      <div class="topbar">
+        <div class="roomcode">방 코드 <b>${ROOM}</b></div>
+        <div id="timerBig">-</div>
+      </div>
+      <div class="map" id="dmap"><div class="mapHint" id="people"></div></div>
+      <div class="qpanel" id="qpanel"></div>
+    </section>
+    <aside class="side">
+      <div class="qrbox">
+        <div id="qr" style="display:inline-block"></div>
+        <p>QR을 찍고 들어오세요</p>
+      </div>
+      <div class="ctrl">
+        <button id="bStart">시작</button>
+        <button id="bReveal">정답 공개</button>
+        <button id="bNext">다음</button>
+      </div>
+      <div class="board" id="board"></div>
+    </aside>
+  </div>`;
+  new QRCode($('qr'), { text: url, width: 200, height: 200, colorDark: '#1F1B2D', colorLight: '#FFFDF8' });
+  $('bStart').onclick = dStart;
+  $('bReveal').onclick = dReveal;
+  $('bNext').onclick = dNext;
+  drawDisplayAll();
+}
+
+function drawDisplayAll() {
+  drawMap($('dmap'));
+  $('people').textContent = '들어온 사람 ' + people().length + '명';
+  drawQPanel();
+  drawBoard();
+  $('bStart').disabled = st.phase !== 'lobby';
+  $('bReveal').disabled = !(st.phase === 'q' && !st.revealed);
+  $('bNext').disabled = !(st.phase === 'reveal' || (st.phase === 'q' && st.revealed));
+}
+
+function drawQPanel() {
+  const box = $('qpanel');
+  if (st.phase === 'lobby') {
+    box.innerHTML = '<h2>곧 시작합니다</h2><p style="font-size:22px">QR을 찍고 닉네임을 입력하면 여기 아바타가 생깁니다.</p>';
+    return;
+  }
+  if (st.phase === 'end') {
+    box.innerHTML = '<h2>끝!</h2><p style="font-size:22px">아래 점수판을 확인하세요.</p>';
+    return;
+  }
+  const quiz = QUIZ[st.q];
+  const counts = [0, 0, 0, 0];
+  Object.values(answers).forEach(a => counts[a.choice]++);
+  const total = Object.keys(answers).length || 1;
+  let html = '<h2>' + (st.q + 1) + '. ' + esc(quiz.q) + '</h2><div class="choices">';
+  quiz.c.forEach((t, i) => {
+    html += '<div class="choice' + (st.revealed && i === quiz.a ? ' correct' : '') + '">' + (i + 1) + '. ' + esc(t) + '</div>';
+  });
+  html += '</div>';
+  if (st.revealed) {
+    html += '<div style="margin-top:14px">';
+    quiz.c.forEach((t, i) => {
+      html += '<div class="bar">선택 ' + counts[i] + '명<i style="width:' + (counts[i] / total * 60) + '%"></i></div>';
+    });
+    html += '</div>';
+  }
+  box.innerHTML = html;
+}
+
+function drawBoard() {
+  const list = Object.entries(scores).sort((a, b) => b[1].score - a[1].score).slice(0, 10);
+  let html = '<h3>점수판</h3>';
+  if (!list.length) html += '<div class="counter">아직 점수가 없습니다.</div>';
+  list.forEach(([pid, s], i) => {
+    html += '<div class="row"><span>' + (i + 1) + '위 ' + esc(s.name) + '</span><b>' + s.score + '</b></div>';
+  });
+  $('board').innerHTML = html;
+}
+
+function dStart() {
+  if (st.phase !== 'lobby') return;
+  dAsk(0);
+}
+
+function dAsk(qi) {
+  answers = {};
+  st = { phase: 'q', q: qi, endAt: Date.now() + SECONDS_PER_Q * 1000, revealed: false };
+  ch.send({ type: 'broadcast', event: 'state', payload: st });
+  drawDisplayAll();
+  clearInterval(dTimer);
+  dTimer = setInterval(dTick, 200);
+}
+
+function dNext() {
+  if (st.phase === 'reveal' || (st.phase === 'q' && st.revealed)) {
+    const nxt = st.q + 1;
+    if (nxt >= QUIZ.length) return dEnd();
+    st.phase = 'reveal';
+    dAsk(nxt);
+  }
+}
+
+function dTick() {
+  if (st.phase !== 'q') return;
+  const left = Math.max(0, (st.endAt - Date.now()) / 1000);
+  const t = $('timerBig');
+  if (t) {
+    t.textContent = Math.ceil(left) + '초';
+    t.classList.toggle('warn', left <= 5);
+  }
+  if (!st.revealed && left <= 0) dReveal();
+}
+
+function dReveal() {
+  if (st.phase !== 'q' || st.revealed) return;
+  st.revealed = true;
+  const quiz = QUIZ[st.q];
+  const results = {};
+  const rows = [];
+  Object.entries(answers).forEach(([pid, a]) => {
+    const ok = a.choice === quiz.a;
+    const left = Math.max(0, (st.endAt - a.t) / 1000);
+    const gain = ok ? 100 + Math.round(left * 5) : 0;
+    scores[pid] = scores[pid] || { name: a.name, score: 0 };
+    scores[pid].name = a.name;
+    scores[pid].score += gain;
+    results[pid] = { ok, gain, total: scores[pid].score };
+    rows.push({ room: ROOM, q: st.q, pid, nick: a.name, choice: a.choice, correct: ok, gain });
+  });
+  if (rows.length) {
+    sb.from('quiz_answers').insert(rows).then(({ error }) => {
+      if (error) console.warn('기록 저장 실패', error.message);
+    });
+  }
+  ch.send({ type: 'broadcast', event: 'reveal', payload: { q: st.q, correct: quiz.a, results } });
+  drawDisplayAll();
+}
+
+function dEnd() {
+  clearInterval(dTimer);
+  st = { phase: 'end', q: QUIZ.length, endAt: 0, revealed: true };
+  ch.send({ type: 'broadcast', event: 'state', payload: st });
+  drawDisplayAll();
+}
+
+/* 큰 화면이 받는 메시지 */
+function displayListeners() {
+  ch.on('presence', { event: 'sync' }, () => { if (MODE === 'display') drawDisplayAll(); });
+  ch.on('broadcast', { event: 'answer' }, ({ payload }) => {
+    if (st.phase !== 'q' || st.revealed) return;
+    if (payload.q !== st.q || answers[payload.pid]) return;
+    answers[payload.pid] = { choice: payload.choice, t: Date.now(), name: payload.name };
+    drawQPanel();
+    $('people').textContent = '들어온 사람 ' + people().length + '명 · 답한 사람 ' + Object.keys(answers).length + '명';
+  });
+  ch.on('broadcast', { event: 'hello' }, () => {
+    ch.send({ type: 'broadcast', event: 'state', payload: st });
+  });
+}
+
+/* ===== 참가자 화면 ===== */
+function renderPlayer() {
+  $('app').innerHTML = `
+  <div class="phone">
+    <div id="joinView" class="card">
+      <h2>수어 연구소에 들어가기</h2>
+      <p>닉네임을 입력하면 큰 화면에 내 아바타가 나타납니다.</p>
+      <input type="text" id="nick" maxlength="8" placeholder="닉네임 (예: 수어짱)">
+      <button class="btn-full" id="bJoin">들어가기</button>
+    </div>
+    <div id="gameView" class="hidden">
+      <div class="card" style="padding:12px">
+        <div class="counter" style="font-size:15px;margin-bottom:6px">지도를 누르면 내 위치가 옮겨집니다.</div>
+        <div class="pmap" id="pmap"></div>
+      </div>
+      <div class="card" id="qCard"><h2>곧 문제가 나옵니다</h2><p class="msgline">큰 화면을 봐 주세요.</p></div>
+    </div>
+  </div>`;
+  $('bJoin').onclick = join;
+  $('pmap').addEventListener('click', e => {
+    if (!me) return;
+    const r = $('pmap').getBoundingClientRect();
+    me.x = Math.round((e.clientX - r.left) / r.width * 100);
+    me.y = Math.round((e.clientY - r.top) / r.height * 100);
+    ch.track(me);
+  });
+}
+
+function join() {
+  const name = ($('nick').value || '').trim();
+  if (!name) return;
+  me = { name, color: colorOf(PID), x: 30 + Math.random() * 40, y: 30 + Math.random() * 40 };
+  $('joinView').classList.add('hidden');
+  $('gameView').classList.remove('hidden');
+  if (subscribed) ch.track(me);
+  drawMap($('pmap'));
+}
+
+function applyState(s) {
+  st = s;
+  if (s.phase === 'q' && !s.revealed) showQuestion(s);
+  else if (s.phase === 'end') showEnd();
+  else if (s.phase === 'lobby') setQCard('<h2>곧 문제가 나옵니다</h2><p class="msgline">큰 화면을 봐 주세요.</p>');
+}
+
+function setQCard(html) {
+  if (!$('qCard')) return;
+  $('qCard').innerHTML = html;
+}
+
+function showQuestion(s) {
+  answered = false;
+  const quiz = QUIZ[s.q];
+  let html = '<h2>' + (s.q + 1) + '. ' + esc(quiz.q) + '</h2><div class="pchoices">';
+  quiz.c.forEach((t, i) => {
+    html += '<button data-i="' + i + '">' + (i + 1) + '. ' + esc(t) + '</button>';
+  });
+  html += '</div><p class="msgline" id="pTime"></p>';
+  setQCard(html);
+  document.querySelectorAll('#qCard .pchoices button').forEach(b => {
+    b.onclick = () => sendAnswer(Number(b.dataset.i), b);
+  });
+  clearInterval(pTimer);
+  pTimer = setInterval(() => {
+    const left = Math.max(0, (s.endAt - Date.now()) / 1000);
+    if ($('pTime')) $('pTime').textContent = answered ? '답을 보냈어요. 결과를 기다리는 중' : '남은 시간 ' + Math.ceil(left) + '초';
+    if (left <= 0) clearInterval(pTimer);
+  }, 200);
+}
+
+function sendAnswer(choice, btn) {
+  if (answered || !me) return;
+  answered = true;
+  document.querySelectorAll('#qCard .pchoices button').forEach(b => b.disabled = true);
+  btn.classList.add('picked');
+  ch.send({ type: 'broadcast', event: 'answer', payload: { pid: PID, name: me.name, q: st.q, choice } });
+}
+
+function showReveal(p) {
+  clearInterval(pTimer);
+  const mine = p.results[PID];
+  let html = '<h2>' + (p.q + 1) + '번 결과</h2>';
+  if (!mine) html += '<div class="result no">시간 초과</div>';
+  else if (mine.ok) html += '<div class="result ok">정답! +' + mine.gain + '</div>';
+  else html += '<div class="result no">아쉬워요</div>';
+  if (mine) html += '<p class="msgline">내 점수 ' + mine.total + '점</p>';
+  html += '<p class="msgline">다음 문제는 큰 화면에서 시작합니다.</p>';
+  setQCard(html);
+}
+
+function showEnd() {
+  setQCard('<h2>끝!</h2><p class="msgline">큰 화면의 점수판을 확인하세요.</p>');
+}
+
+function playerListeners() {
+  ch.on('broadcast', { event: 'state' }, ({ payload }) => applyState(payload));
+  ch.on('broadcast', { event: 'reveal' }, ({ payload }) => {
+    st.revealed = true;
+    showReveal(payload);
+  });
+  ch.on('presence', { event: 'sync' }, () => { if (me) drawMap($('pmap')); });
+}
+
+/* ===== 공통 연결 ===== */
+if (MODE === 'display') {
+  renderDisplay();
+  displayListeners();
+} else {
+  renderPlayer();
+  playerListeners();
+}
+
+ch.subscribe(status => {
+  if (status !== 'SUBSCRIBED') return;
+  subscribed = true;
+  if (me) ch.track(me);
+  if (MODE === 'player') ch.send({ type: 'broadcast', event: 'hello', payload: {} });
+  if (MODE === 'display') drawDisplayAll();
+});
+</script>
+</body>
+</html>
