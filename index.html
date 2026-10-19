@@ -338,7 +338,8 @@ async function join() {
   if (done) showDone(new Date(row.finished_at) - new Date(row.created_at));
   else $('game').classList.remove('hidden');
   drawPlayer();
-  if (subscribed) ch.track(meta());
+  renderConn();
+  if (subscribed) sendNow();
   setInterval(tickMe, 100);
 }
 
@@ -481,26 +482,41 @@ ch.on('presence', { event: 'sync' }, () => {
 if (MODE === 'display') renderTV();
 else renderPlayer();
 
-/* 연결 상태 표시 (휴대폰 화면 하단) */
-function setConn(text) {
+/* 연결 상태 표시 (휴대폰 화면 하단). 입장 전에 연결이 끝나도 나중에 보이도록 값을 기억합니다. */
+let connStatus = '연결 확인 중...';
+let lastTrack = '';
+const STATUS_TEXT = {
+  SUBSCRIBED: '연결됨',
+  CHANNEL_ERROR: '연결 오류',
+  TIMED_OUT: '연결 시간 초과',
+  CLOSED: '연결 끊김'
+};
+function renderConn() {
   const el = $('conn');
-  if (el) el.textContent = text;
+  if (el) el.textContent = connStatus + (lastTrack ? ' · 정보 전송: ' + lastTrack : '');
 }
 
-ch.subscribe(status => {
-  if (MODE === 'player') setConn(status === 'SUBSCRIBED' ? '연결됨' : '연결 확인 중... (' + status + ')');
+ch.subscribe((status, err) => {
+  connStatus = (STATUS_TEXT[status] || status) + (err ? ' (' + (err.message || err) + ')' : '');
+  renderConn();
   if (status !== 'SUBSCRIBED') {
     subscribed = false;
     return;
   }
   subscribed = true;
   // 다시 연결되면 내 정보를 바로 다시 보냅니다. 큰 화면이 나를 다시 찾게 합니다.
-  if (me) ch.track(meta());
+  if (me) sendNow();
 });
+
+function sendNow() {
+  if (!me) return;
+  const p = ch.track(meta());
+  if (p && p.then) p.then(r => { lastTrack = String(r); renderConn(); });
+}
 
 /* 2초마다 내 정보를 다시 보냅니다. 연결이 잠깐 끊겨도 큰 화면이 빨리 복구합니다. */
 setInterval(() => {
-  if (MODE === 'player' && subscribed && me) ch.track(meta());
+  if (MODE === 'player' && subscribed && me) sendNow();
 }, 2000);
 </script>
 </body>
