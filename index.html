@@ -238,19 +238,33 @@ function drawTV() {
   drawAvatars($('tvmap'));
   const ps = people();
   $('stat').textContent = '들어온 사람 ' + ps.length + '명 · 탈출 ' + ps.filter(p => p.done).length + '명';
+  if (params.get('debug') === '1') {
+    // 디버그: 주소 끝에 &debug=1 을 붙이면 접속 정보를 화면에 보여 줍니다.
+    const lines = ps.map(p => esc(p.name) + ' x' + p.x + ' y' + p.y + (p.walking ? ' 걷는중' : '') + (p.done ? ' 탈출' : ''));
+    const drawn = $('tvmap').querySelectorAll('.av').length;
+    $('stat').innerHTML += '<div class="muted" style="font-size:14px">표시된 아바타 ' + drawn + '개<br>' + (lines.join('<br>') || '접속 없음') + '<br>갱신 ' + new Date().toLocaleTimeString() + '</div>';
+  }
+}
+
+/* 걸린 시간 = 입장(created_at)부터 탈출(finished_at)까지. 짧을수록 위 */
+function fmtMs(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
 }
 
 async function loadBoard() {
   const { data, error } = await sb.from('escape_progress')
-    .select('nick,rank,finished_at')
+    .select('nick,created_at,finished_at')
     .eq('room', ROOM)
-    .not('finished_at', 'is', null)
-    .order('finished_at', { ascending: true });
+    .not('finished_at', 'is', null);
   if (error) return;
-  let html = '<h3>탈출 순서</h3>';
-  if (!data || !data.length) html += '<div class="muted">아직 탈출한 사람이 없습니다. 먼저 다 푸는 사람이 먼저 나갑니다.</div>';
-  (data || []).forEach((r, i) => {
-    html += '<div class="brow"><span>' + (i + 1) + '등 ' + esc(r.nick || '') + '</span><b>탈출</b></div>';
+  const list = (data || [])
+    .map(r => ({ nick: r.nick, ms: new Date(r.finished_at) - new Date(r.created_at) }))
+    .sort((a, b) => a.ms - b.ms);
+  let html = '<h3>탈출 순서 (걸린 시간)</h3>';
+  if (!list.length) html += '<div class="muted">아직 탈출한 사람이 없습니다. 입장부터 탈출까지 가장 짧게 걸린 사람이 1등입니다.</div>';
+  list.forEach((r, i) => {
+    html += '<div class="brow"><span>' + (i + 1) + '등 ' + esc(r.nick || '') + '</span><b>' + fmtMs(r.ms) + '</b></div>';
   });
   $('board').innerHTML = html;
 }
@@ -320,7 +334,7 @@ async function join() {
     walking: false, paused: false
   };
   $('join').classList.add('hidden');
-  if (done) showDone(row.rank);
+  if (done) showDone(new Date(row.finished_at) - new Date(row.created_at));
   else $('game').classList.remove('hidden');
   drawPlayer();
   if (subscribed) ch.track(meta());
@@ -436,22 +450,23 @@ async function saveProgress() {
 async function finish() {
   done = true;
   me.paused = true;
-  const { count } = await sb.from('escape_progress')
-    .select('id', { count: 'exact', head: true })
-    .eq('room', ROOM).not('finished_at', 'is', null);
-  const rank = (count || 0) + 1;
-  await sb.from('escape_progress')
-    .update({ finished_at: new Date().toISOString(), rank, solved_idx: solved, solved: solved.length })
-    .eq('room', ROOM).eq('pid', PID);
-  showDone(rank);
+  // 탈출 시간은 DB의 입장/탈출 시각 차이로 계산해서 큰 화면과 같은 값을 씁니다
+  const { data, error } = await sb.from('escape_progress')
+    .update({ finished_at: new Date().toISOString(), solved_idx: solved, solved: solved.length })
+    .eq('room', ROOM).eq('pid', PID)
+    .select('created_at,finished_at')
+    .single();
+  const ms = error || !data ? 0 : new Date(data.finished_at) - new Date(data.created_at);
+  showDone(ms);
   if (subscribed) ch.track(meta());
 }
 
-function showDone(rank) {
+function showDone(ms) {
   done = true;
   $('game').classList.add('hidden');
   $('done').classList.remove('hidden');
-  $('done').innerHTML = '<h2>탈출 성공!</h2><div class="res">' + rank + '등</div>' +
+  $('done').innerHTML = '<h2>탈출 성공!</h2><div class="res">' + fmtMs(ms) + '</div>' +
+    '<p>걸린 시간입니다. 입장부터 탈출까지 시간이 짧을수록 순위가 높아요.</p>' +
     '<p>문제를 모두 풀었어요. 방을 빠져나왔습니다.</p>' +
     '<p class="muted">큰 화면의 탈출 순서를 확인해 보세요. 모두이야기 캠프에서 만나요.</p>';
 }
