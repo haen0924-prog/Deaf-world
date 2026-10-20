@@ -28,6 +28,16 @@ button:disabled{opacity:.4;cursor:default}
 .av .body,.av .arm{fill:var(--c)}
 .av .head{fill:#F6D7B0}
 .av .hair{fill:var(--ink);stroke:none}
+.av .gl{fill:none;stroke:var(--ink);stroke-width:1.6}
+.lkPreview{display:flex;justify-content:center;margin:6px 0 4px;min-height:120px}
+.lkAv{position:static;transform:none;transition:none;--sz:84px;text-align:center}
+.lkLabel{font-weight:700;font-size:15px;margin:10px 0 4px}
+.lkRow{display:flex;flex-wrap:wrap;gap:8px}
+.sw{width:38px;height:38px;border-radius:50%;border:3px solid var(--ink);box-shadow:none;padding:0;cursor:pointer}
+.sw.on{outline:3px solid var(--ink);outline-offset:2px}
+.hb{font-family:var(--body);font-weight:700;font-size:14px;padding:8px 10px;background:var(--paper);color:var(--ink);box-shadow:none;border-radius:10px}
+.hb.on{background:var(--yellow)}
+.lkGlass{display:flex;align-items:center;gap:8px;margin:10px 0 0;font-weight:700;font-size:15px}
 .av .leg{fill:var(--ink);stroke:none;transform-box:fill-box;transform-origin:50% 0}
 .av .arm{transform-box:fill-box;transform-origin:50% 0}
 .av.walk .leg.l,.av.walk .arm.r{animation:swA .45s ease-in-out infinite alternate}
@@ -176,16 +186,73 @@ function people() {
   return Object.values(map).filter(p => p.name);
 }
 
-function svgHTML() {
+/* 아바타 모양: 머리 모양(short/long/bun)과 안경 여부로 구분합니다. 색은 몸통 색(--c)입니다. */
+const HAIR_LABEL = { short: '짧은 머리', long: '긴 머리', bun: '묶은 머리' };
+function svgHTML(look) {
+  look = look || {};
+  const hair = look.hair || 'short';
+  const hairShort = '<path class="hair" d="M10 12 Q10 1.5 20 1.5 Q30 1.5 30 12 Q26 6 20 6.5 Q14 6 10 12Z"/>';
+  const hairLong = '<path class="hair" d="M8 16 Q7 0 20 0 Q33 0 32 16 L32 34 Q28 30 26 27 L14 27 Q12 30 8 34Z"/>';
+  const hairBun = hairShort + '<circle class="hair" cx="20" cy="-1" r="5"/>';
+  const headBack = hair === 'long' ? hairLong : '';
+  const headFront = hair === 'long' ? '' : (hair === 'bun' ? hairBun : hairShort);
+  const glasses = look.glasses
+    ? '<circle class="gl" cx="16" cy="13" r="3.2"/><circle class="gl" cx="24" cy="13" r="3.2"/><path class="gl" d="M19.2 13 L20.8 13"/>'
+    : '';
   return '<svg viewBox="0 0 40 80">' +
     '<rect class="arm l" x="5" y="28" width="7" height="22" rx="3.5"/>' +
     '<rect class="arm r" x="28" y="28" width="7" height="22" rx="3.5"/>' +
     '<rect class="leg l" x="12" y="50" width="7" height="24" rx="3.5"/>' +
     '<rect class="leg r" x="21" y="50" width="7" height="24" rx="3.5"/>' +
     '<rect class="body" x="11" y="26" width="18" height="27" rx="7"/>' +
+    headBack +
     '<circle class="head" cx="20" cy="13" r="10.5"/>' +
-    '<path class="hair" d="M10 12 Q10 1.5 20 1.5 Q30 1.5 30 12 Q26 6 20 6.5 Q14 6 10 12Z"/>' +
+    headFront + glasses +
     '</svg>';
+}
+
+/* 입장 화면에서 고르는 내 모양 */
+let look = null;
+function loadLook() {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem('walkLook') || 'null');
+    if (saved && saved.color) return saved;
+  } catch (e) {}
+  return randomLook();
+}
+function saveLook() {
+  try { sessionStorage.setItem('walkLook', JSON.stringify(look)); } catch (e) {}
+}
+function drawLookPicker() {
+  if (!look || !$('lkColor')) return;
+  $('lkPreview').innerHTML = '<div class="av lkAv" style="--c:' + look.color + '">' + svgHTML(look) + '</div>';
+  $('lkColor').innerHTML = COLORS.map(c =>
+    '<button class="sw' + (c === look.color ? ' on' : '') + '" data-c="' + c + '" style="background:' + c + '" aria-label="옷 색 ' + c + '"></button>'
+  ).join('');
+  $('lkHair').innerHTML = Object.keys(HAIR_LABEL).map(h =>
+    '<button class="hb' + (h === look.hair ? ' on' : '') + '" data-h="' + h + '">' + HAIR_LABEL[h] + '</button>'
+  ).join('');
+  $('lkGlasses').checked = !!look.glasses;
+  $('lkColor').querySelectorAll('.sw').forEach(b => b.onclick = () => { look.color = b.dataset.c; saveLook(); drawLookPicker(); });
+  $('lkHair').querySelectorAll('.hb').forEach(b => b.onclick = () => { look.hair = b.dataset.h; saveLook(); drawLookPicker(); });
+}
+function initLookPicker() {
+  look = loadLook();
+  $('lkGlasses').onchange = e => { look.glasses = e.target.checked; saveLook(); drawLookPicker(); };
+  $('lkRand').onclick = () => { look = randomLook(); saveLook(); drawLookPicker(); };
+  drawLookPicker();
+}
+
+/* 모양 무작위 고르기: 다른 사람이 쓰지 않는 색을 우선 고릅니다 */
+function randomLook() {
+  const used = new Set(people().map(p => p.color));
+  const free = COLORS.filter(c => !used.has(c));
+  const pool = free.length ? free : COLORS;
+  return {
+    color: pool[Math.floor(Math.random() * pool.length)],
+    hair: ['short', 'long', 'bun'][Math.floor(Math.random() * 3)],
+    glasses: Math.random() < 0.3
+  };
 }
 
 /* 아바타 그리기: 있는 것은 위치만 바꾸고, 없는 것은 새로 만듭니다 */
@@ -200,7 +267,7 @@ function drawAvatars(box) {
       el = document.createElement('div');
       el.className = 'av';
       el.dataset.pid = p.pid;
-      el.innerHTML = svgHTML() + '<div class="nm"></div>';
+      el.innerHTML = svgHTML(p) + '<div class="nm"></div>';
       box.appendChild(el);
     }
     el.classList.toggle('self', !!isSelf);
@@ -295,6 +362,13 @@ function renderPlayer() {
       <h2>수어 연구소에 들어가기</h2>
       <p>닉네임을 입력하면 아바타가 나타나고 걷기 시작합니다. 화면의 물음표를 누르면 그곳으로 걸어가서 문제를 풉니다.</p>
       <input type="text" id="nick" maxlength="8" placeholder="닉네임 (예: 수어짱)">
+      <div class="lkPreview" id="lkPreview"></div>
+      <div class="lkLabel">옷 색</div>
+      <div class="lkRow" id="lkColor"></div>
+      <div class="lkLabel">머리 모양</div>
+      <div class="lkRow" id="lkHair"></div>
+      <label class="lkGlass"><input type="checkbox" id="lkGlasses"> 안경 쓰기</label>
+      <button class="block" id="lkRand" style="background:#fff">무작위로 다시 고르기</button>
       <button class="block" id="bJoin">들어가기</button>
       <p class="muted" id="joinMsg"></p>
     </div>
@@ -317,6 +391,7 @@ function renderPlayer() {
     </div>
   </div>`;
   $('bJoin').onclick = join;
+  initLookPicker();
   $('pmap').addEventListener('click', e => {
     if (!me || me.paused || done) return;
     if (e.target.closest('.hot')) return;
@@ -352,7 +427,7 @@ async function join() {
   solved = row.solved_idx || [];
   done = !!row.finished_at;
   me = {
-    name, color: colorOf(PID),
+    name, color: look ? look.color : colorOf(PID), hair: look ? look.hair : 'short', glasses: look ? !!look.glasses : false,
     x: rnd(30, 70), y: rnd(30, 70),
     target: null, goal: null, nextPick: Date.now() + 800,
     walking: false, paused: false
@@ -375,7 +450,7 @@ function drawPlayer() {
 
 function meta() {
   return {
-    name: me.name, color: me.color,
+    name: me.name, color: me.color, hair: me.hair, glasses: me.glasses,
     x: Math.round(me.x), y: Math.round(me.y),
     walking: me.walking, solved: solved.length, total: HOT_COUNT, done
   };
