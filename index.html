@@ -38,6 +38,13 @@ button:disabled{opacity:.4;cursor:default}
 .hb{font-family:var(--body);font-weight:700;font-size:14px;padding:8px 10px;background:var(--paper);color:var(--ink);box-shadow:none;border-radius:10px}
 .hb.on{background:var(--yellow)}
 .lkGlass{display:flex;align-items:center;gap:8px;margin:10px 0 0;font-weight:700;font-size:15px}
+.gbox{background:var(--white);border:4px solid var(--ink);border-radius:20px;padding:14px;box-shadow:5px 5px 0 var(--ink)}
+.gstate{font-family:var(--display);font-size:20px;margin-bottom:10px;line-height:1.3}
+.gstate.running{color:var(--green)}
+.gstate.ended{color:var(--bad)}
+.gctrl{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.gctrl button{font-size:19px;padding:12px 4px}
+#bReset{background:#fff}
 .av .leg{fill:var(--ink);stroke:none;transform-box:fill-box;transform-origin:50% 0}
 .av .arm{transform-box:fill-box;transform-origin:50% 0}
 .av.walk .leg.l,.av.walk .arm.r{animation:swA .45s ease-in-out infinite alternate}
@@ -166,6 +173,88 @@ let currentQ = -1;
 let subscribed = false;
 let lastKey = '';
 let lastSend = 0;
+
+/* ===== 게임 상태: 시작 / 종료 / 리셋 =====
+   status: 'idle'    = 대기 (QR로 들어올 수는 있지만 아직 못 풉니다)
+           'running' = 진행 중
+           'ended'   = 종료 (다시 시작하면 이어서 합니다)
+   상태는 DB(escape_room_state)에 저장해서, 나중에 들어온 사람도 현재 상태를 바로 알 수 있습니다. */
+let GAME = { status: 'idle', startedAt: null };
+let shownStatus = null;      // 참가자 화면에 마지막으로 그린 상태 (같은 상태면 다시 그리지 않음)
+const STATE_TEXT = { idle: '대기 중 · QR로 입장할 수 있어요', running: '진행 중', ended: '종료됨' };
+
+async function loadGame() {
+  try {
+    const { data } = await sb.from('escape_room_state').select('status,started_at').eq('room', ROOM).maybeSingle();
+    if (data) GAME = { status: data.status || 'idle', startedAt: data.started_at ? new Date(data.started_at).getTime() : null };
+  } catch (e) { /* 실패하면 지금 값을 그대로 씁니다 */ }
+  return GAME;
+}
+
+async function saveGame(next) {
+  const { error } = await sb.from('escape_room_state').upsert({
+    room: ROOM,
+    status: next.status,
+    started_at: next.startedAt ? new Date(next.startedAt).toISOString() : null,
+    updated_at: new Date().toISOString()
+  });
+  if (error) { alert('상태를 저장하지 못했어요: ' + error.message); return; }
+  GAME = next;
+  ch.send({ type: 'broadcast', event: 'game', payload: GAME });
+  applyGameUI();
+}
+
+/* 시작: 대기 상태에서 누르면 시간 기록을 이때부터 잽니다. 종료 상태에서 누르면 이어서 합니다. */
+function gameStart() {
+  const first = GAME.status === 'idle' || !GAME.startedAt;
+  saveGame({ status: 'running', startedAt: first ? Date.now() : GAME.startedAt });
+}
+function gameEnd() {
+  saveGame({ status: 'ended', startedAt: GAME.startedAt });
+}
+/* 리셋: 순위표와 모든 진행 기록을 지우고 대기 상태로 돌립니다. */
+async function gameReset() {
+  if (!confirm('순위표와 모든 진행 기록을 지웁니다. 계속할까요?')) return;
+  const { error } = await sb.from('escape_progress').delete().eq('room', ROOM);
+  if (error) { alert('기록을 지우지 못했어요: ' + error.message); return; }
+  await saveGame({ status: 'idle', startedAt: null });
+  ch.send({ type: 'broadcast', event: 'reset', payload: {} });
+  loadBoard();
+}
+
+/* 걸린 시간: 게임이 시작된 시각과 입장 시각 중 늦은 쪽부터 탈출까지 */
+function elapsedMs(row) {
+  const from = Math.max(new Date(row.created_at).getTime() || 0, GAME.startedAt || 0);
+  return new Date(row.finished_at).getTime() - from;
+}
+
+/* 화면 상태 맞추기: 큰 화면은 버튼, 참가자 화면은 진행 화면/대기 화면 */
+function applyGameUI() {
+  if (MODE === 'display') {
+    if (!$('gstate')) return;
+    $('gstate').textContent = STATE_TEXT[GAME.status] || GAME.status;
+    $('gstate').className = 'gstate ' + GAME.status;
+    $('bStart').disabled = GAME.status === 'running';
+    $('bEnd').disabled = GAME.status !== 'running';
+    return;
+  }
+  if (!me || done || !$('game')) return;
+  if (shownStatus === GAME.status) return;
+  shownStatus = GAME.status;
+  if (GAME.status === 'running') {
+    $('wait').classList.add('hidden');
+    $('game').classList.remove('hidden');
+  } else {
+    $('game').classList.add('hidden');
+    $('modal').classList.add('hidden');
+    me.paused = false;
+    me.walking = false;
+    $('wait').innerHTML = GAME.status === 'ended'
+      ? '<h2>게임이 끝났어요</h2><p>관리자가 다시 시작하면 이어서 풀 수 있어요.</p>'
+      : '<h2>곧 시작합니다</h2><p>큰 화면을 봐 주세요. 시작하면 이 화면이 바뀝니다.</p>';
+    $('wait').classList.remove('hidden');
+  }
+}
 
 /* 위치 정보는 브로드캐스트로 받아서 posMap에 모읍니다 (가벼운 메시지).
    접속 입장/퇴장은 presence로 받습니다. 두 가지를 합쳐서 사람 목록을 만듭니다. */
@@ -306,11 +395,24 @@ function renderTV() {
     <div class="tvmap poster" id="tvmap"></div>
     <aside class="side">
       <div class="qrbox"><div id="qr" style="display:inline-block"></div><p>QR을 찍고 들어오세요</p></div>
+      <div class="gbox">
+        <div class="gstate" id="gstate">대기 중</div>
+        <div class="gctrl">
+          <button id="bStart">시작</button>
+          <button id="bEnd">종료</button>
+          <button id="bReset">리셋</button>
+        </div>
+      </div>
       <div class="stat" id="stat">들어온 사람 0명</div>
       <div class="board" id="board"></div>
     </aside>
   </div>`;
   new QRCode($('qr'), { text: url, width: 180, height: 180, colorDark: '#1F1B2D', colorLight: '#FFFDF8' });
+  $('bStart').onclick = gameStart;
+  $('bEnd').onclick = gameEnd;
+  $('bReset').onclick = gameReset;
+  loadGame().then(applyGameUI);
+  setInterval(() => loadGame().then(applyGameUI), 3000);
   drawTV();
   // 큰 화면은 1초마다 현재 접속 목록으로 다시 그립니다. 놓친 갱신이 있어도 아바타가 사라지지 않게 합니다.
   setInterval(drawTV, 1000);
@@ -344,10 +446,10 @@ async function loadBoard() {
     .not('finished_at', 'is', null);
   if (error) return;
   const list = (data || [])
-    .map(r => ({ nick: r.nick, ms: new Date(r.finished_at) - new Date(r.created_at) }))
+    .map(r => ({ nick: r.nick, ms: elapsedMs(r) }))
     .sort((a, b) => a.ms - b.ms);
   let html = '<h3>탈출 순서 (걸린 시간)</h3>';
-  if (!list.length) html += '<div class="muted">아직 탈출한 사람이 없습니다. 입장부터 탈출까지 가장 짧게 걸린 사람이 1등입니다.</div>';
+  if (!list.length) html += '<div class="muted">아직 탈출한 사람이 없습니다. 게임 시작 후 탈출까지 가장 짧게 걸린 사람이 1등입니다.</div>';
   list.forEach((r, i) => {
     html += '<div class="brow"><span>' + (i + 1) + '등 ' + esc(r.nick || '') + '</span><b>' + fmtMs(r.ms) + '</b></div>';
   });
@@ -380,6 +482,7 @@ function renderPlayer() {
         <p class="muted" id="conn" style="margin:6px 0 0;font-size:13px">연결 확인 중...</p>
       </div>
     </div>
+    <div id="wait" class="card hidden"></div>
     <div id="done" class="card hidden"></div>
     <div id="modal" class="modal hidden">
       <div class="mcard">
@@ -393,7 +496,7 @@ function renderPlayer() {
   $('bJoin').onclick = join;
   initLookPicker();
   $('pmap').addEventListener('click', e => {
-    if (!me || me.paused || done) return;
+    if (!me || me.paused || done || GAME.status !== 'running') return;
     if (e.target.closest('.hot')) return;
     const r = $('pmap').getBoundingClientRect();
     me.goal = null;
@@ -433,8 +536,9 @@ async function join() {
     walking: false, paused: false
   };
   $('join').classList.add('hidden');
-  if (done) showDone(new Date(row.finished_at) - new Date(row.created_at));
-  else $('game').classList.remove('hidden');
+  await loadGame();
+  if (done) showDone(elapsedMs(row));
+  else { shownStatus = null; applyGameUI(); }
   drawPlayer();
   renderConn();
   if (subscribed) sendNow();
@@ -459,6 +563,8 @@ function meta() {
 /* 혼자 걸어 다니는 움직임 */
 function tickMe() {
   if (!me || done || me.paused) return;
+  // 게임이 진행 중이 아니면 제자리에 서 있습니다 (위치는 계속 알립니다)
+  if (GAME.status !== 'running') { me.walking = false; moveSelf(); return; }
   const now = Date.now();
   if (!me.target && now > me.nextPick) {
     me.target = { x: rnd(8, 92), y: rnd(16, 90) };
@@ -506,7 +612,7 @@ function sendMe() { sendPos(false); }
 
 /* 문제 아이콘으로 걸어가기 */
 function goHot(i) {
-  if (!me || me.paused || done || solved.includes(i)) return;
+  if (!me || me.paused || done || GAME.status !== 'running' || solved.includes(i)) return;
   me.goal = i;
   me.target = { x: HOTSPOTS[i].x, y: HOTSPOTS[i].y + 4 };
 }
@@ -563,7 +669,7 @@ async function finish() {
     .eq('room', ROOM).eq('pid', PID)
     .select('created_at,finished_at')
     .single();
-  const ms = error || !data ? 0 : new Date(data.finished_at) - new Date(data.created_at);
+  const ms = error || !data ? 0 : elapsedMs(data);
   showDone(ms);
   if (subscribed) ch.track(meta());
 }
@@ -578,10 +684,37 @@ function showDone(ms) {
     '<p class="muted">큰 화면의 탈출 순서를 확인해 보세요. 모두이야기 캠프에서 만나요.</p>';
 }
 
+/* 리셋 후 참가자: 기록이 지워졌으니 같은 이름으로 다시 등록하고 새 문제를 받습니다 */
+async function onReset() {
+  if (!me) return;
+  solved = []; done = false; currentQ = -1;
+  me.goal = null; me.target = null; me.paused = false;
+  qset = makeQset();
+  const { error } = await sb.from('escape_progress').upsert(
+    { room: ROOM, pid: PID, nick: me.name, qset, solved_idx: [], solved: 0, total: HOT_COUNT },
+    { onConflict: 'room,pid' });
+  if (error) { $('joinMsg') && ($('joinMsg').textContent = '다시 등록하지 못했어요. 새로고침해 주세요.'); }
+  $('done').classList.add('hidden');
+  $('modal').classList.add('hidden');
+  shownStatus = null;
+  drawPlayer();
+  applyGameUI();
+  sendNow();
+}
+
 /* ===== 연결 ===== */
 ch.on('presence', { event: 'sync' }, () => {
   if (MODE === 'display') drawTV();
   else drawPlayer();
+});
+ch.on('broadcast', { event: 'game' }, ({ payload }) => {
+  if (!payload) return;
+  GAME = { status: payload.status || 'idle', startedAt: payload.startedAt || null };
+  applyGameUI();
+});
+ch.on('broadcast', { event: 'reset' }, () => {
+  if (MODE === 'player') onReset();
+  else loadBoard();
 });
 ch.on('broadcast', { event: 'pos' }, ({ payload }) => {
   if (!payload || !payload.pid || payload.pid === PKEY) return;
@@ -647,6 +780,11 @@ setInterval(() => {
 setInterval(() => {
   if (MODE === 'player' && me && $('pmap') && !$('game').classList.contains('hidden')) drawAvatars($('pmap'));
 }, 500);
+
+/* 참가자 화면은 5초마다 게임 상태를 확인합니다 (방송을 놓쳐도 맞춰집니다) */
+setInterval(() => {
+  if (MODE === 'player' && me) loadGame().then(applyGameUI);
+}, 5000);
 </script>
 </body>
 </html>
