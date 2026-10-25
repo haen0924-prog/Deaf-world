@@ -79,6 +79,10 @@ button:disabled{opacity:.4;cursor:default}
 /* 포스터는 QR 오른쪽 빈 공간의 가운데에 놓습니다 (QR과 겹치지 않도록) */
 .tvmap .frame{left:calc(50% + 140px);width:min(calc(100% - 300px),calc(var(--mh,100vh) * 1178 / 1473))}
 .qrfloat p{font-size:15px;margin-top:6px}
+.qrfloat p small,.howto small{display:block;font-size:11px;font-weight:600;opacity:.7;margin-top:2px}
+.howto{list-style:none;margin:10px 0 0;padding:10px 0 0;border-top:2px dashed var(--ink);font-size:13px;line-height:1.4}
+.howto li{margin:0 0 7px}
+.howto li b{color:var(--ink)}
 .board{background:var(--white);border:4px solid var(--ink);border-radius:20px;padding:14px;flex:1;overflow:auto;min-height:0}
 .board h3{font-family:var(--display);font-weight:400;font-size:22px;margin:0 0 8px}
 .brow{display:flex;justify-content:space-between;font-size:19px;padding:6px 0;border-bottom:2px dashed #cfc7b4}
@@ -408,7 +412,13 @@ function renderTV() {
   $('app').innerHTML = `
   <div class="tv">
     <div class="tvmap" id="tvmap"><div class="frame poster" id="tvframe"></div>
-      <div class="qrbox qrfloat"><div id="qr" style="display:inline-block"></div><p>QR을 찍고 들어오세요</p></div>
+      <div class="qrbox qrfloat"><div id="qr" style="display:inline-block"></div><p>QR을 찍고 들어오세요<small>Scan the QR · 扫码进入</small></p>
+        <ol class="howto">
+          <li><b>1.</b> 휴대폰 카메라로 QR 찍기<small>Scan with your phone camera · 用手机扫码</small></li>
+          <li><b>2.</b> 이름 입력 후 들어오기<small>Enter your name · 输入名字后进入</small></li>
+          <li><b>3.</b> 움직이다가 숫자 버튼 누르고 문제 풀기<small>Walk and tap a number to answer · 走动后点击数字答题</small></li>
+          <li><b>4.</b> 문제를 모두 먼저 풀면 탈출!<small>First to solve all escapes! · 最先全部答对即可逃脱</small></li>
+        </ol></div>
     </div>
     <aside class="side">
       <div class="gbox">
