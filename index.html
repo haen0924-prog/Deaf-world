@@ -58,10 +58,11 @@ button:disabled{opacity:.4;cursor:default}
 .av .nm span{font-family:var(--display);font-weight:400;color:var(--pink)}
 
 /* 문제 아이콘 */
-.hot{position:absolute;transform:translate(-50%,-50%);width:44px;height:44px;min-width:44px;min-height:44px;max-width:44px;max-height:44px;
+.hot{position:absolute;transform:translate(-50%,-50%);width:64px;height:64px;min-width:64px;min-height:64px;max-width:64px;max-height:64px;
   border-radius:50%;background:var(--white);color:var(--ink);border:3px solid var(--ink);box-shadow:3px 3px 0 var(--ink);
-  font-family:var(--display);font-size:22px;line-height:38px;text-align:center;padding:0;margin:0;
+  font-family:var(--display);font-size:17px;line-height:1.05;text-align:center;padding:0;margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
   animation:pulse 1.8s ease-in-out infinite;z-index:1;cursor:pointer;user-select:none}
+.hot small{display:block;font-family:inherit;font-size:10px;font-weight:700;letter-spacing:-.2px;margin-top:1px}
 .hot.done{background:#cfc7b4;color:var(--ink);animation:none;opacity:.7}
 .hot.tv{pointer-events:none}
 @keyframes pulse{0%,100%{transform:translate(-50%,-50%) scale(1)}50%{transform:translate(-50%,-50%) scale(1.08)}}
@@ -400,7 +401,8 @@ function drawHot(box, clickable) {
     b.className = 'hot' + (isDone ? ' done' : '') + (clickable ? '' : ' tv');
     b.style.left = h.x + '%';
     b.style.top = h.y + '%';
-    b.textContent = isDone ? '✓' : String(i + 1);
+    if (isDone) b.textContent = '✓';
+    else b.innerHTML = '문제<small>Q · 题</small>';
     if (clickable) b.onclick = () => goHot(i);
     box.appendChild(b);
   });
