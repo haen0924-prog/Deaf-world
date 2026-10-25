@@ -76,6 +76,8 @@ button:disabled{opacity:.4;cursor:default}
 .stat{font-family:var(--display);font-size:24px}
 /* QR: 큰 화면 왼쪽 상단에 띄웁니다 */
 .qrfloat{position:absolute;left:18px;top:18px;z-index:5;width:230px;padding:12px;box-shadow:4px 4px 0 var(--ink)}
+/* 포스터는 QR 오른쪽 빈 공간의 가운데에 놓습니다 (QR과 겹치지 않도록) */
+.tvmap .frame{left:calc(50% + 140px);width:min(calc(100% - 300px),calc(var(--mh,100vh) * 1178 / 1473))}
 .qrfloat p{font-size:15px;margin-top:6px}
 .board{background:var(--white);border:4px solid var(--ink);border-radius:20px;padding:14px;flex:1;overflow:auto;min-height:0}
 .board h3{font-family:var(--display);font-weight:400;font-size:22px;margin:0 0 8px}
