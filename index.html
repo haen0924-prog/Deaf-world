@@ -201,9 +201,9 @@ let lastSend = 0;
 let GAME = { status: 'idle', startedAt: null };
 let shownStatus = null;      // 참가자 화면에 마지막으로 그린 상태 (같은 상태면 다시 그리지 않음)
 const STATE_TEXT = {
-  idle: '대기 중 · QR로 입장할 수 있어요<br><small>Waiting · 扫码即可入场</small>',
-  running: '진행 중<br><small>Playing · 进行中</small>',
-  ended: '종료됨<br><small>Ended · 已结束</small>'
+  idle: '대기 중 · QR로 입장할 수 있어요<br><small>Waiting</small>',
+  running: '진행 중<br><small>Playing</small>',
+  ended: '종료됨<br><small>Ended</small>'
 };
 
 async function loadGame() {
@@ -237,7 +237,7 @@ function gameEnd() {
 }
 /* 리셋: 순위표와 모든 진행 기록을 지우고 대기 상태로 돌립니다. */
 async function gameReset() {
-  if (!confirm('순위표와 모든 진행 기록을 지웁니다. 계속할까요?\n\nAll records will be cleared. Continue?\n所有记录将被清除，是否继续？')) return;
+  if (!confirm('순위표와 모든 진행 기록을 지웁니다. 계속할까요?\n\nAll records will be cleared. Continue?')) return;
   const { error } = await sb.from('escape_progress').delete().eq('room', ROOM);
   if (error) { alert('기록을 지우지 못했어요: ' + error.message); return; }
   await saveGame({ status: 'idle', startedAt: null });
@@ -276,9 +276,9 @@ function applyGameUI() {
     me.walking = false;
     $('wait').innerHTML = GAME.status === 'ended'
       ? '<h2>게임이 끝났어요</h2><p>관리자가 다시 시작하면 이어서 풀 수 있어요.</p>' +
-        '<p class="muted">The game is over. It will continue when restarted.<br>游戏已结束，重新开始后可继续。</p>'
+        '<p class="muted">The game is over. It will continue when restarted.</p>'
       : '<h2>곧 시작합니다</h2><p>큰 화면을 봐 주세요. 시작하면 이 화면이 바뀝니다.</p>' +
-        '<p class="muted">Starting soon. Please look at the big screen.<br>即将开始，请看大屏幕。</p>';
+        '<p class="muted">Starting soon. Please look at the big screen.</p>';
     $('wait').classList.remove('hidden');
   }
 }
@@ -289,7 +289,7 @@ function startCountdown() {
   const el = $('countdown');
   if (!el) return;
   const steps = ['3', '2', '1', '시작!'];
-  const subs = ['Get ready · 准备', 'Get ready · 准备', 'Get ready · 准备', 'Go! · 开始'];
+  const subs = ['Get ready', 'Get ready', 'Get ready', 'Go!'];
   let i = 0;
   countingDown = true;
   el.classList.remove('hidden');
@@ -447,21 +447,21 @@ function renderTV() {
   $('app').innerHTML = `
   <div class="tv">
     <div class="tvmap" id="tvmap"><div class="frame poster" id="tvframe"></div>
-      <div class="qrbox qrfloat"><div id="qr" style="display:inline-block"></div><p>QR을 찍고 들어오세요<small>Scan the QR · 扫码进入</small></p>
+      <div class="qrbox qrfloat"><div id="qr" style="display:inline-block"></div><p>QR을 찍고 들어오세요<small>Scan the QR</small></p>
         <ol class="howto">
-          <li><b>1.</b> 휴대폰 카메라로 QR 찍기<small>Scan with your phone camera · 用手机扫码</small></li>
-          <li><b>2.</b> 이름 입력 후 들어오기<small>Enter your name · 输入名字后进入</small></li>
-          <li><b>3.</b> 움직이다가 Q를 눌러서 문제 풀기<small>Walk and tap a Q to answer · 走动后点击Q答题</small></li>
-          <li><b>4.</b> 문제를 모두 먼저 풀면 탈출!<small>First to solve all escapes! · 最先全部答对即可逃脱</small></li>
+          <li><b>1.</b> 휴대폰 카메라로 QR 찍기<small>Scan with your phone camera</small></li>
+          <li><b>2.</b> 이름 입력 후 들어오기<small>Enter your name</small></li>
+          <li><b>3.</b> 움직이다가 Q를 눌러서 문제 풀기<small>Walk and tap a Q to answer</small></li>
+          <li><b>4.</b> 문제를 모두 먼저 풀면 탈출!<small>First to solve all escapes!</small></li>
         </ol></div>
     </div>
     <aside class="side">
       <div class="gbox">
         <div class="gstate" id="gstate">대기 중</div>
         <div class="gctrl">
-          <button id="bStart">시작<small>Start · 开始</small></button>
-          <button id="bEnd">종료<small>End · 结束</small></button>
-          <button id="bReset">리셋<small>Reset · 重置</small></button>
+          <button id="bStart">시작<small>Start</small></button>
+          <button id="bEnd">종료<small>End</small></button>
+          <button id="bReset">리셋<small>Reset</small></button>
         </div>
       </div>
       <div class="stat" id="stat">들어온 사람 0명</div>
@@ -537,9 +537,9 @@ function renderPlayer() {
     <div id="game" class="hidden">
       <div class="pmap" id="pmap"><div class="frame poster" id="pframe"></div></div>
       <div class="card" style="padding:14px">
-        <div class="pbar"><span>내 진행<small>My progress · 我的进度</small></span><b id="pcount">0 / ${HOT_COUNT}</b></div>
-        <p style="margin:8px 0 0;font-size:16px;font-weight:700">Q를 눌러서 문제를 푸세요<small>Tap a Q to solve a question · 点击 Q 答题</small></p>
-        <p class="muted" style="margin:6px 0 0">빈 곳을 누르면 그곳으로 걸어갑니다.<small>Tap an empty spot to walk there · 点击空白处即可走过去</small></p>
+        <div class="pbar"><span>내 진행<small>My progress</small></span><b id="pcount">0 / ${HOT_COUNT}</b></div>
+        <p style="margin:8px 0 0;font-size:16px;font-weight:700">Q를 눌러서 문제를 푸세요<small>Tap a Q to solve a question</small></p>
+        <p class="muted" style="margin:6px 0 0">빈 곳을 누르면 그곳으로 걸어갑니다.<small>Tap an empty spot to walk there</small></p>
       </div>
     </div>
     <div id="wait" class="card hidden"></div>
