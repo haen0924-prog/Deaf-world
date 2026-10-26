@@ -740,9 +740,9 @@ function showDone(ms) {
   $('game').classList.add('hidden');
   $('done').classList.remove('hidden');
   $('done').innerHTML = '<h2>탈출 성공!</h2><div class="res">' + fmtMs(ms) + '</div>' +
-    '<p>걸린 시간입니다. 입장부터 탈출까지 시간이 짧을수록 순위가 높아요.</p>' +
-    '<p>문제를 모두 풀었어요. 방을 빠져나왔습니다.</p>' +
-    '<p class="muted">큰 화면의 탈출 순서를 확인해 보세요. 모두이야기 캠프에서 만나요.</p>';
+    '<p>걸린 시간입니다. 입장부터 탈출까지 시간이 짧을수록 순위가 높아요.<small>This is your time. The shorter the time from entering to escaping, the higher your rank.</small></p>' +
+    '<p>문제를 모두 풀었어요. 방을 빠져나왔습니다.<small>You solved all the questions and got out of the room.</small></p>' +
+    '<p class="muted">큰 화면의 탈출 순서를 확인해 보세요.<small>Check the escape order on the big screen.</small></p>';
 }
 
 /* 리셋 후 참가자: 기록이 지워졌으니 같은 이름으로 다시 등록하고 새 문제를 받습니다 */
