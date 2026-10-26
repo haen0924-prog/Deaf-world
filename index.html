@@ -100,6 +100,7 @@ input[type=text]{width:100%;font-family:var(--body);font-size:18px;padding:12px 
 .block{display:block;width:100%;margin-top:10px}
 .pmap{position:relative;height:64vh;min-height:360px;overflow:hidden;--sz:44px;--mh:64vh;border:3px solid var(--ink);border-radius:18px;box-shadow:6px 6px 0 var(--ink);margin-bottom:14px;touch-action:manipulation}
 .pbar{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:16px}
+.pbar small,.card p small{display:block;font-size:12px;font-weight:600;opacity:.7;margin-top:2px}
 .pbar b{font-family:var(--display);font-weight:400;font-size:24px;color:var(--pink)}
 .modal{position:fixed;inset:0;background:rgba(31,27,45,.55);display:grid;place-items:center;padding:16px;z-index:9}
 .mcard{background:var(--white);border:3px solid var(--ink);border-radius:20px;padding:20px;max-width:440px;width:100%;box-shadow:6px 6px 0 var(--ink)}
@@ -419,7 +420,7 @@ function renderTV() {
         <ol class="howto">
           <li><b>1.</b> 휴대폰 카메라로 QR 찍기<small>Scan with your phone camera · 用手机扫码</small></li>
           <li><b>2.</b> 이름 입력 후 들어오기<small>Enter your name · 输入名字后进入</small></li>
-          <li><b>3.</b> 움직이다가 숫자 버튼 누르고 문제 풀기<small>Walk and tap a number to answer · 走动后点击数字答题</small></li>
+          <li><b>3.</b> 움직이다가 Q를 눌러서 문제 풀기<small>Walk and tap a Q to answer · 走动后点击Q答题</small></li>
           <li><b>4.</b> 문제를 모두 먼저 풀면 탈출!<small>First to solve all escapes! · 最先全部答对即可逃脱</small></li>
         </ol></div>
     </div>
@@ -450,7 +451,6 @@ function renderTV() {
 }
 
 function drawTV() {
-  drawHot($('tvframe'), false);
   drawAvatars($('tvframe'));
   const ps = people();
   $('stat').textContent = '들어온 사람 ' + ps.length + '명 · 탈출 ' + ps.filter(p => p.done).length + '명';
@@ -506,9 +506,9 @@ function renderPlayer() {
     <div id="game" class="hidden">
       <div class="pmap" id="pmap"><div class="frame poster" id="pframe"></div></div>
       <div class="card" style="padding:14px">
-        <div class="pbar"><span>내 진행</span><b id="pcount">0 / ${HOT_COUNT}</b></div>
-        <p class="muted" style="margin:6px 0 0">빈 곳을 누르면 그곳으로 걸어갑니다.</p>
-        <p class="muted" id="conn" style="margin:6px 0 0;font-size:13px">연결 확인 중...</p>
+        <div class="pbar"><span>내 진행<small>My progress · 我的进度</small></span><b id="pcount">0 / ${HOT_COUNT}</b></div>
+        <p style="margin:8px 0 0;font-size:16px;font-weight:700">Q를 눌러서 문제를 푸세요<small>Tap a Q to solve a question · 点击 Q 答题</small></p>
+        <p class="muted" style="margin:6px 0 0">빈 곳을 누르면 그곳으로 걸어갑니다.<small>Tap an empty spot to walk there · 点击空白处即可走过去</small></p>
       </div>
     </div>
     <div id="wait" class="card hidden"></div>
